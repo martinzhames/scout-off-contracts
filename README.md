@@ -835,3 +835,8 @@ Quick checklist:
 - Formatting clean: `cargo fmt --all -- --check`
 - New functions have tests and are documented in [docs/CONTRACT_REFERENCE.md](docs/CONTRACT_REFERENCE.md)
 - Validator authorization logic changes require explicit review from a second team member
+
+## Handsoff notes
+
+<!-- handsoff-issue-1671 -->
+- #1671: progress: extract the duplicated registration-sync block from advance_level and reset_player_level
