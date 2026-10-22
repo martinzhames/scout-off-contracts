@@ -843,3 +843,6 @@ Quick checklist:
 
 <!-- handsoff-issue-1672 -->
 - #1672: scout_access: add_to_tier_index is marked #[allow(dead_code)] but is used
+
+<!-- handsoff-issue-1673 -->
+- #1673: scout_access: admin_seed_fee_config / admin_seed_fee_config_history redefine the history cap locally
