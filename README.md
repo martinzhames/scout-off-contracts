@@ -840,3 +840,6 @@ Quick checklist:
 
 <!-- handsoff-issue-1671 -->
 - #1671: progress: extract the duplicated registration-sync block from advance_level and reset_player_level
+
+<!-- handsoff-issue-1672 -->
+- #1672: scout_access: add_to_tier_index is marked #[allow(dead_code)] but is used
