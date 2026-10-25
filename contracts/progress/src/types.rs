@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, BytesN};
+use soroban_sdk::{contracttype, Address, BytesN, Vec};
 
 pub use scoutchain_shared_types::{ProgressLevel, WiringLink};
 
@@ -59,6 +59,16 @@ pub struct HistoryCursorPage {
     /// Total number of history entries recorded for the player at the time
     /// of the read (the snapshot the page was taken against).
     pub snapshot_count: u32,
+}
+
+/// Result of `get_history_since_v2`: entries newest-first plus a flag telling
+/// the caller whether more matching entries may exist beyond `limit` or the
+/// page-scan cap.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct HistorySince {
+    pub entries: Vec<ProgressEntry>,
+    pub truncated: bool,
 }
 
 /// One peak of a player's incremental Merkle frontier (issue #1368).
@@ -159,11 +169,14 @@ pub enum DataKey {
     /// `HISTORY_PAGE_SIZE` chronological entries, keeping each persistent-read key
     /// bounded even if a player accumulates many resets or re-entries.
     HistoryPage(u64, u32),
-    /// The `Address` of the companion verification contract. Reserved for
-    /// future cross-contract authorisation checks; not yet written at runtime.
+    /// The `Address` of the companion verification contract. Written by
+    /// `set_verification_contract` and read by `advance_level`, which uses it
+    /// to gate level advances to the authorised verification caller.
     VerificationContract,
-    /// The `Address` of the registration contract. Only this address is
-    /// permitted to call `initialize_player`. Set by `set_registration_contract`.
+    /// The `Address` of the registration contract. Written by
+    /// `set_registration_contract`; used to sync levels via `set_player_level`
+    /// and to fail closed in `advance_level` / `reset_player_level` when the
+    /// registration peer is not configured.
     RegistrationContract,
     /// The `Address` of the scout_access contract. Whitelisted as a secondary
     /// authorised caller of `advance_level` (for trial-offer Level-3 advances).
@@ -180,6 +193,47 @@ pub enum DataKey {
     /// it lets an operator confirm progress across several `migrate` calls
     /// without reading the cursor's implied position.
     MigrationProcessed,
-    /// The
+    /// The current Merkle commitment root over a player's full
+    /// [`ProgressEntry`] history (an RFC 6962-style Merkle Tree Hash — see
+    /// `record_progress_entry`'s doc comment for the construction). Updated
+    /// on every history append alongside [`HistoryVec`]. Independently
+    /// verifiable via `verify_history_proof` without trusting the RPC node
+    /// that served the query — see `get_progress_root`.
+    HistoryRoot(u64),
+    /// Incremental Merkle commitment state for a player's history (issue
+    /// #1368): the ordered list of [`FrontierPeak`]s whose levels are the set
+    /// bits of the current entry count.
+    ///
+    /// This is the accumulator `record_progress_entry` now maintains instead
+    /// of re-reading every `HistoryPage` shard and re-hashing the whole
+    /// history on each append. The RFC 6962 root in [`DataKey::HistoryRoot`]
+    /// remains byte-identical — it is now derived by folding these peaks
+    /// instead of by recursing over the full leaf list.
+    ///
+    /// Absent for players whose history predates this key; the first append
+    /// after an upgrade rebuilds it lazily from the existing history.
+    HistoryFrontier(u64),
 
-/* … truncated 2449 chars — edit only what you need near the top … */
+    /// Boolean flag (`true`) written by `open_migration_window`; absent or
+    /// `false` means the migration window is closed. All `admin_seed_*`
+    /// functions on this contract check this flag before writing any state.
+    /// Cleared by `close_migration_window`. Stored in instance storage so it
+    /// is immediately visible and requires no TTL management.
+    MigrationActive,
+    /// Irreversible flag set by `close_migration_window` after the window
+    /// has been closed once. If present (true), `open_migration_window`
+    /// will return `MigrationWindowSealed` error. This ensures the
+    /// migration window can only be opened once per contract deployment.
+    MigrationWindowSealed,
+    /// Re-wiring epoch for [`DataKey::RegistrationContract`], bumped by
+    /// every `set_registration_contract` call. See
+    /// `scoutchain_shared_types::WiringLink` and
+    /// `docs/WIRING_REGISTRY_DESIGN.md` (issue #1041).
+    RegistrationContractEpoch,
+    /// Re-wiring epoch for [`DataKey::VerificationContract`], bumped by
+    /// every `set_verification_contract` call.
+    VerificationContractEpoch,
+    /// Re-wiring epoch for [`DataKey::ScoutAccessContract`], bumped by
+    /// every `set_scout_access_contract` call.
+    ScoutAccessContractEpoch,
+}
